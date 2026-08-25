@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CleverDevs Transfer | Secure P2P</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="logo-badge">CleverDevs</div>
+        <h1>انتقال مستقیم فایل</h1>
+        <p class="subtitle">انتقال امن، سریع و بدون واسطه فایل بین دو دستگاه (P2P)</p>
+    </header>
+
+    <!-- Card 1: Connection -->
+    <div class="card">
+        <div class="conn-box">
+            <div class="room-details">
+                <div class="status-wrap">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="statusText">در حال اتصال به سرور...</span>
+                </div>
+                <div class="room-code" id="roomDisplay" onclick="copyRoomCode()">----</div>
+                <p class="hint">کد را کپی کرده یا بارکد را اسکن کنید.</p>
+            </div>
+            <div id="qrcode"></div>
+        </div>
+        
+        <hr style="border-top: 1px solid var(--border); margin: 20px 0;">
+        
+        <p class="hint" style="margin-bottom: 8px;">یا کد دستگاه مقابل را دستی وارد کنید:</p>
+        <div class="manual-join">
+            <input type="text" id="manualCodeInput" placeholder="مثلاً a1b-2cd" autocomplete="off">
+            <button onclick="joinManual()">اتصال</button>
+        </div>
+    </div>
+
+    <!-- Card 2: Send File -->
+    <div class="card">
+        <div class="card-title">ارسال فایل 📤</div>
+        
+        <label class="file-zone" for="fileInput">
+            <input type="file" id="fileInput" onchange="handleFile(this)">
+            <span id="fileLabel" style="color: var(--text-secondary); font-size: 0.9rem;">انتخاب فایل...</span>
+        </label>
+        
+        <button id="sendBtn" class="btn btn-primary" onclick="initiateTransfer()" disabled>ارسال به دستگاه مقابل</button>
+        
+        <div id="sendProgressWrap" style="display: none; margin-top: 16px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-family: monospace; color: var(--text-secondary);" id="sendMeta"></div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="sendProgFill"></div></div>
+        </div>
+    </div>
+
+    <!-- Card 3: Receive File -->
+    <div class="card">
+        <div class="card-title">دریافت فایل 📥</div>
+        
+        <div class="consent-box" id="consentBox">
+            <div id="consentText" style="font-size: 0.85rem; color: #fca5a5;"></div>
+            <div class="btn-group">
+                <button class="btn-accept" onclick="acceptFile()">قبول</button>
+                <button class="btn-reject" onclick="rejectFile()">رد</button>
+            </div>
+        </div>
+
+        <div id="recvProgressWrap" style="display: none; margin-top: 16px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-family: monospace; color: var(--text-secondary);" id="recvMeta"></div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="recvProgFill"></div></div>
+            <a id="downloadBtn" class="btn btn-success" style="display: none; margin-top: 16px;" download>دانلود فایل</a>
+        </div>
+    </div>
+
+    <footer>
+        End-to-End Encrypted • Powered by <a href="t.me/cleverdevs" class="cyan-text">CleverDevs Team</span>
+    </footer>
+</div>
+
+<script src="./script.js"></script>
+
+</body>
+</html>
