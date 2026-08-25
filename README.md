@@ -1,10 +1,10 @@
 # WebRTC P2P File Transfer ⚡
 
-[فارسی (Persian) ](#-توضیحات-فارسی) | [English](#-english-description)
+[فارسی (Persian) ](#توضیحات-فارسی) | [English](#english-description)
 
 ---
 
-## 🇺🇸 English Description
+## English Description
 
 A lightweight, blazing-fast, and secure peer-to-peer (P2P) file transfer application built with **WebRTC** and **Node.js**. 
 
