@@ -35,7 +35,7 @@
 
     function init() {
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        socket = new WebSocket(`ws://localhost:8080/ws`);
+        socket = new WebSocket(`${protocol}//${location.host}/ws`);
 
         socket.onopen = () => {
             document.getElementById('statusText').innerText = 'در انتظار اتصال دستگاه دیگر...';
