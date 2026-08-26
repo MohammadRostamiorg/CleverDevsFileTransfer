@@ -35,7 +35,7 @@
 
     function init() {
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        socket = new WebSocket(`${protocol}//${location.host}/ws`);
+        socket = new WebSocket(`ws://localhost:8080/ws`);
 
         socket.onopen = () => {
             document.getElementById('statusText').innerText = 'در انتظار اتصال دستگاه دیگر...';
@@ -114,6 +114,7 @@
         let chunks = [];
 
         pc.ondatachannel = (e) => {
+            dataChannel = e.channel;
             const channel = e.channel;
             channel.binaryType = 'arraybuffer';
 
@@ -125,17 +126,7 @@
                         document.getElementById('consentBox').style.display = 'block';
                         document.getElementById('consentText').innerText = `دریافت فایل "${payload.name}" (${(payload.size/(1024*1024)).toFixed(2)} MB)`;
                         
-                        window.acceptFile = () => {
-                            document.getElementById('consentBox').style.display = 'none';
-                            document.getElementById('recvProgressWrap').style.display = 'block';
-                            channel.send(JSON.stringify({ type: 'consent-reply', accept: true }));
-                            received = 0; chunks = [];
-                        };
-
-                        window.rejectFile = () => {
-                            document.getElementById('consentBox').style.display = 'none';
-                            channel.send(JSON.stringify({ type: 'consent-reply', accept: false }));
-                        };
+                    
                     } 
                 } else {
                     chunks.push(event.data);
@@ -221,33 +212,44 @@
         socket.send(JSON.stringify({ type: 'offer', data: offer }));
     }
 
-    async function startChunking() {
-        document.getElementById('sendBtn').innerText = 'در حال ارسال...';
-        document.getElementById('sendProgressWrap').style.display = 'block';
-        
-        const chunkSize = 16384;
-        const buffer = await activeFile.arrayBuffer();
-        let offset = 0;
+async function startChunking() {
+    document.getElementById('sendBtn').innerText = 'در حال ارسال...';
+    document.getElementById('sendProgressWrap').style.display = 'block';
+    
+    const chunkSize = 262144; // 256KB chunks (much faster than 16KB)
+    let offset = 0;
 
-        const sendNext = () => {
-            while (offset < buffer.byteLength) {
-                if (dataChannel.bufferedAmount > 65536) {
-                    dataChannel.onbufferedamountlow = () => {
-                        dataChannel.onbufferedamountlow = null;
-                        sendNext();
-                    };
-                    return;
-                }
-                dataChannel.send(buffer.slice(offset, offset + chunkSize));
-                offset += chunkSize;
-                const p = Math.round((offset / buffer.byteLength) * 100);
+    const sendNext = () => {
+        // Send as many chunks as possible until the buffer is full
+        while (offset < activeFile.size) {
+            // Backpressure: Pause if buffer exceeds 1MB (keeps network pipe full)
+            if (dataChannel.bufferedAmount > 1048576) {
+                dataChannel.onbufferedamountlow = () => {
+                    dataChannel.onbufferedamountlow = null;
+                    sendNext();
+                };
+                return;
+            }
+
+            // Read a chunk (memory-safe)
+            const chunk = activeFile.slice(offset, offset + chunkSize);
+            dataChannel.send(chunk);
+            
+            offset += chunk.size;
+            
+            // Update UI every 10 chunks to reduce overhead
+            if (offset % (chunkSize * 10) === 0 || offset >= activeFile.size) {
+                const p = Math.round((offset / activeFile.size) * 100);
                 document.getElementById('sendProgFill').style.width = `${p}%`;
                 document.getElementById('sendMeta').innerText = `${p}% | ${activeFile.name}`;
             }
-            document.getElementById('sendBtn').innerText = 'فایل کامل ارسال شد ✅';
-        };
-        sendNext();
-    }
+        }
+        
+        document.getElementById('sendBtn').innerText = 'فایل کامل ارسال شد ✅';
+    };
+    
+    sendNext();
+}
 
     function copyRoomCode() {
         navigator.clipboard.writeText(currentRoom);
@@ -268,3 +270,33 @@
     }
 
     window.onload = init;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const acceptBtn = document.getElementById('acceptBtn');
+    const rejectBtn = document.getElementById('rejectBtn');
+
+    if (acceptBtn) {
+        acceptBtn.addEventListener('click', () => {
+            document.getElementById('consentBox').style.display = 'none';
+            document.getElementById('recvProgressWrap').style.display = 'block';
+            
+            
+            if (dataChannel) {
+                dataChannel.send(JSON.stringify({ type: 'consent-reply', accept: true }));
+            }
+            received = 0; 
+            chunks = [];
+        });
+    }
+
+    if (rejectBtn) {
+        rejectBtn.addEventListener('click', () => {
+            document.getElementById('consentBox').style.display = 'none';
+            
+            // Send rejection to the sender
+            if (dataChannel) {
+                dataChannel.send(JSON.stringify({ type: 'consent-reply', accept: false }));
+            }
+        });
+    }
+});
