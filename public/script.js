@@ -160,8 +160,39 @@ function handleFile(input) {
     }
 }
 
+let wakeLock = null;
+
+async function requestWakeLock() {
+    try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log('Wake Lock active: Screen will stay awake.');
+        
+        // Re-acquire wake lock if the user switches tabs and comes back
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+    } catch (err) {
+        console.warn(`Wake Lock failed: ${err.name}, ${err.message}`);
+    }
+}
+
+function releaseWakeLock() {
+    if (wakeLock !== null) {
+        wakeLock.release().then(() => {
+            wakeLock = null;
+            console.log('Wake Lock released.');
+        });
+    }
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+}
+
+function handleVisibilityChange() {
+    if (document.visibilityState === 'visible' && wakeLock === null) {
+        requestWakeLock();
+    }
+}
+
 async function initiateTransfer() {
     if (!activeFile) return;
+     requestWakeLock(); 
     createPeer();
 
     dataChannel = pc.createDataChannel('fileTransfer');
@@ -248,6 +279,7 @@ async function startChunking() {
         }
 
         document.getElementById('sendBtn').innerText = 'فایل کامل ارسال شد ✅';
+        releaseWakeLock()
     };
 
     sendNext();
