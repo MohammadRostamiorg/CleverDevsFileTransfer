@@ -115,6 +115,9 @@ function createPeer() {
     let fileMeta = null;
     let received = 0;
     let chunks = [];
+    let recvLastTime = Date.now();
+    let recvLastBytes = 0;
+    let recvSpeedText = "0 MB/s";
 
     pc.ondatachannel = (e) => {
         dataChannel = e.channel;
@@ -128,13 +131,23 @@ function createPeer() {
                     fileMeta = payload;
                     document.getElementById('consentBox').style.display = 'block';
                     document.getElementById('consentText').innerText = `دریافت فایل "${payload.name}" (${(payload.size / (1024 * 1024)).toFixed(2)} MB)`;
+                    recvLastTime = Date.now();
                 }
             } else {
                 chunks.push(event.data);
                 received += event.data.byteLength;
-                const p = Math.round((received / fileMeta.size) * 100);
-                document.getElementById('recvProgFill').style.width = `${p}%`;
-                document.getElementById('recvMeta').innerText = `${p}% | ${fileMeta.name}`;
+
+                const now = Date.now();
+                if (now - recvLastTime >= 1000) {
+                    const bytesPerSec = (received - recvLastBytes) / ((now - recvLastTime) / 1000);
+                    recvSpeedText = (bytesPerSec / (1024 * 1024)).toFixed(2) + ' MB/s';
+                    recvLastTime = now;
+                    recvLastBytes = received;
+
+                    const p = Math.round((received / fileMeta.size) * 100);
+                    document.getElementById('recvProgFill').style.width = `${p}%`;
+                    document.getElementById('recvMeta').innerText = `${p}% | ${fileMeta.name} | ${recvSpeedText}`;
+                }
 
                 if (received >= fileMeta.size) {
                     const blob = new Blob(chunks);
@@ -142,6 +155,7 @@ function createPeer() {
                     dl.href = URL.createObjectURL(blob);
                     dl.download = fileMeta.name;
                     dl.style.display = 'block';
+                    document.getElementById('recvProgFill').style.width = `100%`;
                     document.getElementById('recvMeta').innerText = `کامل شد | ${fileMeta.name}`;
                     releaseWakeLock();
                 }
@@ -164,9 +178,7 @@ async function requestWakeLock() {
     try {
         wakeLock = await navigator.wakeLock.request('screen');
         document.addEventListener('visibilitychange', handleVisibilityChange);
-    } catch (err) {
-        console.warn(`Wake Lock failed: ${err.name}, ${err.message}`);
-    }
+    } catch (err) {}
 }
 
 function releaseWakeLock() {
@@ -194,11 +206,7 @@ async function initiateTransfer() {
 
     transferTimeout = setTimeout(() => {
         if (dataChannel && dataChannel.readyState !== 'open') {
-            alert(
-                "⚠️ خطا در برقراری تونل انتقال داده!\n\n" +
-                "دلیل: شبکه یا مرورگر مقصد اجازه عبور ترافیک را نمی‌دهد.\n" +
-                "💡 راه‌حل: در صورت استفاده از پروکسی یا VPN، لطفاً آن را موقتاً خاموش کنید."
-            );
+            alert("خطا در برقراری تونل انتقال داده!\nلطفاً پروکسی یا VPN را موقتاً خاموش کنید.");
             document.getElementById('sendBtn').disabled = false;
             document.getElementById('sendBtn').innerText = 'ارسال به دستگاه مقابل';
             document.getElementById('sendProgressWrap').style.display = 'none';
@@ -244,6 +252,9 @@ async function startChunking() {
 
     const chunkSize = 65536;
     let offset = 0;
+    let sendLastTime = Date.now();
+    let sendLastOffset = 0;
+    let sendSpeedText = "0 MB/s";
 
     const sendNext = async () => {
         while (offset < activeFile.size) {
@@ -261,14 +272,22 @@ async function startChunking() {
             dataChannel.send(buffer);
             offset += buffer.byteLength;
 
-            if (offset % (chunkSize * 10) === 0 || offset >= activeFile.size) {
+            const now = Date.now();
+            if (now - sendLastTime >= 1000) {
+                const bytesPerSec = (offset - sendLastOffset) / ((now - sendLastTime) / 1000);
+                sendSpeedText = (bytesPerSec / (1024 * 1024)).toFixed(2) + ' MB/s';
+                sendLastTime = now;
+                sendLastOffset = offset;
+
                 const p = Math.round((offset / activeFile.size) * 100);
                 document.getElementById('sendProgFill').style.width = `${p}%`;
-                document.getElementById('sendMeta').innerText = `${p}% | ${activeFile.name}`;
+                document.getElementById('sendMeta').innerText = `${p}% | ${activeFile.name} | ${sendSpeedText}`;
             }
         }
 
+        document.getElementById('sendProgFill').style.width = `100%`;
         document.getElementById('sendBtn').innerText = 'فایل کامل ارسال شد ✅';
+        document.getElementById('sendMeta').innerText = `100% | ${activeFile.name} | انجام شد`;
         releaseWakeLock();
     };
 
@@ -301,8 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (acceptBtn) {
         acceptBtn.addEventListener('click', () => {
-            requestWakeLock(); 
-            
+            requestWakeLock();
             document.getElementById('consentBox').style.display = 'none';
             document.getElementById('recvProgressWrap').style.display = 'block';
 
