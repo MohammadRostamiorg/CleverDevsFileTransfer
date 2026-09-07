@@ -4,6 +4,7 @@ let dataChannel = null;
 let pendingCandidates = [];
 let activeFile = null;
 let transferTimeout = null;
+let wakeLock = null;
 
 let rtcConfig = {
     iceServers: [
@@ -52,7 +53,7 @@ function init() {
         const msg = JSON.parse(event.data);
 
         if (msg.type === 'turn-auth') {
-            const turnDomain = 'turn.transfer.cleverdevs.ir'; // New Grey Cloud domain
+            const turnDomain = 'turn.transfer.cleverdevs.ir';
 
             rtcConfig.iceServers.push({
                 urls: `turn:${turnDomain}:3478?transport=udp`,
@@ -127,8 +128,6 @@ function createPeer() {
                     fileMeta = payload;
                     document.getElementById('consentBox').style.display = 'block';
                     document.getElementById('consentText').innerText = `دریافت فایل "${payload.name}" (${(payload.size / (1024 * 1024)).toFixed(2)} MB)`;
-
-
                 }
             } else {
                 chunks.push(event.data);
@@ -160,14 +159,9 @@ function handleFile(input) {
     }
 }
 
-let wakeLock = null;
-
 async function requestWakeLock() {
     try {
         wakeLock = await navigator.wakeLock.request('screen');
-        console.log('Wake Lock active: Screen will stay awake.');
-        
-        // Re-acquire wake lock if the user switches tabs and comes back
         document.addEventListener('visibilitychange', handleVisibilityChange);
     } catch (err) {
         console.warn(`Wake Lock failed: ${err.name}, ${err.message}`);
@@ -178,7 +172,6 @@ function releaseWakeLock() {
     if (wakeLock !== null) {
         wakeLock.release().then(() => {
             wakeLock = null;
-            console.log('Wake Lock released.');
         });
     }
     document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -192,13 +185,12 @@ function handleVisibilityChange() {
 
 async function initiateTransfer() {
     if (!activeFile) return;
-     requestWakeLock(); 
+    requestWakeLock();
     createPeer();
 
     dataChannel = pc.createDataChannel('fileTransfer');
     dataChannel.binaryType = 'arraybuffer';
 
-    // ⏱️ تایمر محافظ ۸ ثانیه‌ای
     transferTimeout = setTimeout(() => {
         if (dataChannel && dataChannel.readyState !== 'open') {
             alert(
@@ -249,13 +241,11 @@ async function startChunking() {
     document.getElementById('sendBtn').innerText = 'در حال ارسال...';
     document.getElementById('sendProgressWrap').style.display = 'block';
 
-    const chunkSize = 262144; // 256KB chunks (much faster than 16KB)
+    const chunkSize = 262144;
     let offset = 0;
 
-    const sendNext = () => {
-        // Send as many chunks as possible until the buffer is full
+    const sendNext = async () => {
         while (offset < activeFile.size) {
-            // Backpressure: Pause if buffer exceeds 1MB (keeps network pipe full)
             if (dataChannel.bufferedAmount > 1048576) {
                 dataChannel.onbufferedamountlow = () => {
                     dataChannel.onbufferedamountlow = null;
@@ -264,13 +254,12 @@ async function startChunking() {
                 return;
             }
 
-            // Read a chunk (memory-safe)
             const chunk = activeFile.slice(offset, offset + chunkSize);
-            dataChannel.send(chunk);
+            const buffer = await chunk.arrayBuffer();
+            
+            dataChannel.send(buffer);
+            offset += buffer.byteLength;
 
-            offset += chunk.size;
-
-            // Update UI every 10 chunks to reduce overhead
             if (offset % (chunkSize * 10) === 0 || offset >= activeFile.size) {
                 const p = Math.round((offset / activeFile.size) * 100);
                 document.getElementById('sendProgFill').style.width = `${p}%`;
@@ -279,7 +268,7 @@ async function startChunking() {
         }
 
         document.getElementById('sendBtn').innerText = 'فایل کامل ارسال شد ✅';
-        releaseWakeLock()
+        releaseWakeLock();
     };
 
     sendNext();
@@ -314,7 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('consentBox').style.display = 'none';
             document.getElementById('recvProgressWrap').style.display = 'block';
 
-
             if (dataChannel) {
                 dataChannel.send(JSON.stringify({ type: 'consent-reply', accept: true }));
             }
@@ -327,7 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
         rejectBtn.addEventListener('click', () => {
             document.getElementById('consentBox').style.display = 'none';
 
-            // Send rejection to the sender
             if (dataChannel) {
                 dataChannel.send(JSON.stringify({ type: 'consent-reply', accept: false }));
             }
