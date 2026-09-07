@@ -143,6 +143,7 @@ function createPeer() {
                     dl.download = fileMeta.name;
                     dl.style.display = 'block';
                     document.getElementById('recvMeta').innerText = `کامل شد | ${fileMeta.name}`;
+                    releaseWakeLock();
                 }
             }
         };
@@ -241,7 +242,7 @@ async function startChunking() {
     document.getElementById('sendBtn').innerText = 'در حال ارسال...';
     document.getElementById('sendProgressWrap').style.display = 'block';
 
-    const chunkSize = 262144;
+    const chunkSize = 65536;
     let offset = 0;
 
     const sendNext = async () => {
@@ -300,6 +301,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (acceptBtn) {
         acceptBtn.addEventListener('click', () => {
+            requestWakeLock(); 
+            
             document.getElementById('consentBox').style.display = 'none';
             document.getElementById('recvProgressWrap').style.display = 'block';
 
